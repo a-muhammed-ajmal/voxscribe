@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#7c3aed" />
+  <meta name="description" content="VoxScribe — Record your voice and get polished, AI-transcribed text instantly. A cross-platform PWA powered by Gemini AI." />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="VoxScribe" />
+  <title>VoxScribe — Voice to Polished Text</title>
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="stylesheet" href="./style.css" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="VoxScribe — Voice to Polished Text" />
+  <meta property="og:description" content="Record your voice and get polished, AI-transcribed text instantly." />
+  <meta property="og:type" content="website" />
+</head>
+<body>
+
+  <!-- ── Transcribing Overlay ───────────────────────────────────────────── -->
+  <div class="transcribing-overlay hidden" id="transcribingOverlay" role="dialog" aria-live="polite" aria-label="Transcribing audio">
+    <div class="transcribing-spinner" aria-hidden="true"></div>
+    <p class="transcribing-text">Transcribing with AI…</p>
+    <p class="transcribing-sub">Gemini is cleaning up your recording. This takes a few seconds.</p>
+  </div>
+
+  <!-- ── Settings Overlay ──────────────────────────────────────────────── -->
+  <div class="settings-overlay" id="settingsOverlay" aria-hidden="true"></div>
+
+  <!-- ── Settings Panel ───────────────────────────────────────────────── -->
+  <aside class="settings-panel" id="settingsPanel" role="complementary" aria-label="Settings">
+    <div class="settings-header">
+      <h2 class="settings-title">Settings</h2>
+      <button class="icon-btn" id="closeSettings" aria-label="Close settings">✕</button>
+    </div>
+
+    <div class="settings-section">
+      <p class="settings-section-title">Gemini AI Key</p>
+      <div class="input-group">
+        <label class="input-label" for="apiKeyInput">API Key</label>
+        <input
+          type="password"
+          id="apiKeyInput"
+          class="api-input"
+          placeholder="AIza…"
+          autocomplete="off"
+          spellcheck="false"
+          aria-label="Gemini API key"
+        />
+        <p id="apiStatus" class="api-status hidden"></p>
+      </div>
+      <button class="save-btn" id="saveApiBtn">Save Key</button>
+      <p class="settings-info">
+        Get your free key at
+        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a>.
+        Your key is stored locally on this device and never sent to any server other than Google.
+      </p>
+    </div>
+
+    <div class="settings-divider"></div>
+
+    <div class="settings-section">
+      <p class="settings-section-title">About VoxScribe</p>
+      <p class="settings-info">
+        VoxScribe uses the <strong>Gemini 2.0 Flash</strong> multimodal model to transcribe and clean up your voice recordings.
+        All audio is processed directly browser-to-Gemini — no intermediary server.
+        Recordings are stored locally using IndexedDB.
+      </p>
+    </div>
+  </aside>
+
+  <!-- ── App Shell ──────────────────────────────────────────────────────── -->
+  <div class="app-shell">
+
+    <!-- Header -->
+    <header class="app-header" role="banner">
+      <div class="brand">
+        <div class="brand-icon" aria-hidden="true">🎙</div>
+        <div>
+          <div class="brand-name">VoxScribe</div>
+        </div>
+        <span class="brand-tag">PWA</span>
+      </div>
+      <div class="header-actions">
+        <button class="icon-btn" id="settingsBtn" aria-label="Open settings" title="Settings">⚙</button>
+      </div>
+    </header>
+
+    <!-- ── Record Section ─────────────────────────────────────────────── -->
+    <main>
+      <section class="record-hero" aria-label="Voice recorder">
+        <div class="record-btn-wrap">
+          <div class="record-ring-outer" aria-hidden="true"></div>
+          <div class="record-ring-inner" aria-hidden="true"></div>
+          <button
+            class="record-btn"
+            id="recordBtn"
+            aria-label="Start recording"
+            aria-pressed="false"
+          >
+            <span id="recordIcon" aria-hidden="true">🎙</span>
+            <span id="recordLabel">Start Recording</span>
+          </button>
+        </div>
+
+        <div id="timerDisplay" class="timer-display hidden" role="timer" aria-live="polite">00:00</div>
+
+        <div id="waveform" class="waveform" aria-hidden="true"></div>
+      </section>
+
+      <!-- ── Audio Player ──────────────────────────────────────────────── -->
+      <section class="section" aria-label="Audio playback">
+        <div id="playerSection" class="glass-card player-section hidden">
+          <div class="player-header">
+            <span class="player-title">Recording ready</span>
+            <span class="duration-badge" id="durationBadge">00:00</span>
+          </div>
+
+          <audio
+            id="audioPlayer"
+            controls
+            preload="metadata"
+            aria-label="Recorded audio playback"
+          ></audio>
+
+          <button class="download-btn" id="downloadBtn" aria-label="Download audio file">
+            <span aria-hidden="true">↓</span> Download Audio
+          </button>
+        </div>
+      </section>
+
+      <!-- ── Transcribe Button ─────────────────────────────────────────── -->
+      <section class="section" style="margin-top:14px;">
+        <button
+          class="transcribe-btn hidden"
+          id="transcribeBtn"
+          aria-label="Transcribe audio with AI"
+        >
+          <span class="btn-sparkle" aria-hidden="true">✦</span>
+          Transcribe with AI
+        </button>
+      </section>
+
+      <!-- ── Transcript Output ─────────────────────────────────────────── -->
+      <section class="section" aria-label="Transcript output">
+        <div id="transcriptSection" class="glass-card hidden">
+          <div class="transcript-header">
+            <span class="transcript-label">✦ Transcript</span>
+            <button class="copy-btn" id="copyBtn" aria-label="Copy transcript to clipboard">
+              <span id="copyIcon">⧉</span> Copy
+            </button>
+          </div>
+          <textarea
+            id="transcriptText"
+            placeholder="Your AI-polished transcript will appear here…"
+            aria-label="Transcript text output"
+            readonly
+          ></textarea>
+        </div>
+      </section>
+
+      <!-- ── History ───────────────────────────────────────────────────── -->
+      <section class="section" style="margin-top: 28px;" aria-label="Recording history">
+        <div class="history-header">
+          <h1 class="history-title">Recent Recordings</h1>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span class="count-badge" id="countBadge">0 / 10</span>
+            <button class="clear-btn" id="clearAllBtn" aria-label="Clear all recordings">Clear all</button>
+          </div>
+        </div>
+
+        <div id="historyList" role="list" aria-label="Past recordings"></div>
+
+        <div id="emptyState" class="empty-state" aria-live="polite">
+          <div class="empty-icon" aria-hidden="true">🎤</div>
+          <p class="empty-text">No recordings yet</p>
+          <p class="empty-sub">Hit the mic button to get started.</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ── Toast Container ───────────────────────────────────────────────── -->
+  <div id="toastContainer" class="toast-container" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

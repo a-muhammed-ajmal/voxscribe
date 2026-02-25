@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Serve / dev tools
+.serve/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment (never commit secrets)
+.env
+.env.local
