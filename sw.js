@@ -1,12 +1,17 @@
-const CACHE_NAME = 'voxscribe-v1';
+const CACHE_NAME = 'voxscribe-v2';
 const ASSETS = [
     './',
     './index.html',
     './style.css',
     './app.js',
     './db.js',
+    './firebase.js',
     './manifest.json',
-    'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap'
+    'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap',
+    'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js',
+    'https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js',
+    'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js',
+    'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js'
 ];
 
 self.addEventListener('install', (e) => {
@@ -26,6 +31,10 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
     // Don't intercept Gemini API calls
     if (e.request.url.includes('googleapis.com') || e.request.url.includes('gemini')) {
+        return;
+    }
+    // Don't intercept Firebase API calls
+    if (e.request.url.includes('firebaseio.com') || e.request.url.includes('firestore.googleapis.com') || e.request.url.includes('google.com')) {
         return;
     }
     e.respondWith(

@@ -37,6 +37,33 @@
     </div>
 
     <div class="settings-section">
+      <p class="settings-section-title">Account</p>
+      <div id="authSection" class="auth-section">
+        <div id="userInfo" class="user-info hidden">
+          <div class="user-avatar" id="userAvatar"></div>
+          <div class="user-details">
+            <div class="user-name" id="userName"></div>
+            <div class="user-email" id="userEmail"></div>
+          </div>
+          <button class="sign-out-btn" id="signOutBtn">Sign Out</button>
+        </div>
+        <div id="signInPrompt" class="sign-in-prompt">
+          <p class="auth-info">Sign in to sync your recordings across all devices</p>
+          <button class="sign-in-btn" id="signInBtn">
+            <span class="google-icon">🔗</span>
+            Sign in with Google
+          </button>
+        </div>
+      </div>
+      <div id="syncStatus" class="sync-status hidden">
+        <span class="sync-icon">🔄</span>
+        <span class="sync-text">Syncing...</span>
+      </div>
+    </div>
+
+    <div class="settings-divider"></div>
+
+    <div class="settings-section">
       <p class="settings-section-title">Gemini AI Key</p>
       <div class="input-group">
         <label class="input-label" for="apiKeyInput">API Key</label>
@@ -66,7 +93,7 @@
       <p class="settings-info">
         VoxScribe uses the <strong>Gemini 2.0 Flash</strong> multimodal model to transcribe and clean up your voice recordings.
         All audio is processed directly browser-to-Gemini — no intermediary server.
-        Recordings are stored locally using IndexedDB.
+        Recordings are synced to the cloud when you sign in with Google.
       </p>
     </div>
   </aside>

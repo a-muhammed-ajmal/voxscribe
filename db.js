@@ -1,70 +1,76 @@
-// ─── VoxScribe IndexedDB Layer ───────────────────────────────────────────────
-const DB_NAME = 'voxscribe_db';
-const DB_VERSION = 1;
+// ─── VoxScribe Firestore Layer ───────────────────────────────────────────────
+import { auth, db, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy, limit, where, serverTimestamp, currentUser } from './firebase.js';
+
 const STORE = 'recordings';
 const MAX_RECORDS = 10;
 
-let db = null;
-
 export function initDB() {
-    return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, DB_VERSION);
-
-        req.onupgradeneeded = (e) => {
-            const database = e.target.result;
-            if (!database.objectStoreNames.contains(STORE)) {
-                const store = database.createObjectStore(STORE, { keyPath: 'id' });
-                store.createIndex('createdAt', 'createdAt', { unique: false });
-            }
-        };
-
-        req.onsuccess = (e) => {
-            db = e.target.result;
-            resolve(db);
-        };
-
-        req.onerror = (e) => reject(e.target.error);
+    return new Promise((resolve) => {
+        // Firebase is already initialized in firebase.js
+        resolve();
     });
 }
 
-export function saveRecording(recording) {
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE, 'readwrite');
-        const store = tx.objectStore(STORE);
-        store.put(recording);
-        tx.oncomplete = () => resolve();
-        tx.onerror = (e) => reject(e.target.error);
-    });
+export async function saveRecording(recording) {
+    if (!currentUser) {
+        throw new Error('User not authenticated');
+    }
+    
+    try {
+        const userRecordingsRef = collection(db, 'users', currentUser.uid, STORE);
+        const recordingRef = doc(userRecordingsRef, recording.id);
+        
+        await setDoc(recordingRef, {
+            ...recording,
+            userId: currentUser.uid,
+            createdAt: serverTimestamp(),
+            syncedAt: serverTimestamp()
+        });
+    } catch (error) {
+        console.error('Error saving recording:', error);
+        throw error;
+    }
 }
 
-export function getAllRecordings() {
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE, 'readonly');
-        const store = tx.objectStore(STORE);
-        const index = store.index('createdAt');
-        const req = index.getAll();
-        req.onsuccess = () => {
-            const sorted = (req.result || []).sort((a, b) => b.createdAt - a.createdAt).slice(0, MAX_RECORDS);
-            resolve(sorted);
-        };
-        req.onerror = (e) => reject(e.target.error);
-    });
+export async function getAllRecordings() {
+    if (!currentUser) {
+        return [];
+    }
+    
+    try {
+        const userRecordingsRef = collection(db, 'users', currentUser.uid, STORE);
+        const q = query(userRecordingsRef, orderBy('createdAt', 'desc'), limit(MAX_RECORDS));
+        const querySnapshot = await getDocs(q);
+        
+        return querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAt: doc.data().createdAt?.toMillis() || Date.now()
+        }));
+    } catch (error) {
+        console.error('Error getting recordings:', error);
+        return [];
+    }
 }
 
-export function deleteRecording(id) {
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE, 'readwrite');
-        const store = tx.objectStore(STORE);
-        store.delete(id);
-        tx.oncomplete = () => resolve();
-        tx.onerror = (e) => reject(e.target.error);
-    });
+export async function deleteRecording(id) {
+    if (!currentUser) {
+        throw new Error('User not authenticated');
+    }
+    
+    try {
+        const recordingRef = doc(db, 'users', currentUser.uid, STORE, id);
+        await deleteDoc(recordingRef);
+    } catch (error) {
+        console.error('Error deleting recording:', error);
+        throw error;
+    }
 }
 
 export async function pruneOldRecordings() {
     const all = await getAllRecordings();
-    if (all.length >= MAX_RECORDS) {
-        const toDelete = all.slice(MAX_RECORDS - 1);
+    if (all.length > MAX_RECORDS) {
+        const toDelete = all.slice(MAX_RECORDS);
         for (const rec of toDelete) {
             await deleteRecording(rec.id);
         }

@@ -1,5 +1,6 @@
 // ─── VoxScribe — Core Application ────────────────────────────────────────────
 import { initDB, saveRecording, getAllRecordings, deleteRecording, pruneOldRecordings } from './db.js';
+import { signInWithGoogle, signOutUser, currentUser, onAuthStateChanged } from './firebase.js';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const state = {
@@ -48,15 +49,37 @@ const settingsOverlay = $('settingsOverlay');
 const clearAllBtn = $('clearAllBtn');
 const transcribingOverlay = $('transcribingOverlay');
 
+// Auth elements
+const signInBtn = $('signInBtn');
+const signOutBtn = $('signOutBtn');
+const userInfo = $('userInfo');
+const signInPrompt = $('signInPrompt');
+const userAvatar = $('userAvatar');
+const userName = $('userName');
+const userEmail = $('userEmail');
+const syncStatus = $('syncStatus');
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
     await initDB();
+    
+    // Set up auth state listener
+    window.addEventListener('authStateChanged', handleAuthStateChange);
+    
+    // Initial auth state
+    updateAuthUI();
+    
     // Pre-fill settings field with whatever key is active (stored or default)
     if (state.apiKey) {
         apiKeyInput.value = state.apiKey;
         showApiStatus('API key active ✓', 'success');
     }
-    await loadHistory();
+    
+    // Only load history if user is authenticated
+    if (currentUser) {
+        await loadHistory();
+    }
+    
     registerSW();
     setupWaveformBars();
 }
@@ -368,27 +391,56 @@ function blobToBase64(blob) {
 
 // ── Persist + History ─────────────────────────────────────────────────────────
 async function persistRecording(transcript) {
-    await pruneOldRecordings();
+    if (!currentUser) {
+        showToast('Please sign in to save recordings', 'error');
+        return;
+    }
+    
+    showSyncStatus('Saving...');
+    
+    try {
+        await pruneOldRecordings();
 
-    // Convert blob to base64 for IndexedDB storage
-    const audioBase64 = await blobToBase64(state.currentBlob);
-    const mimeType = state.currentBlob.type;
+        // Convert blob to base64 for Firestore storage
+        const audioBase64 = await blobToBase64(state.currentBlob);
+        const mimeType = state.currentBlob.type;
 
-    const record = {
-        id: `rec_${Date.now()}`,
-        createdAt: Date.now(),
-        duration: state.elapsedSeconds,
-        transcript,
-        audioBase64,
-        mimeType
-    };
+        const record = {
+            id: `rec_${Date.now()}`,
+            createdAt: Date.now(),
+            duration: state.elapsedSeconds,
+            transcript,
+            audioBase64,
+            mimeType
+        };
 
-    await saveRecording(record);
+        await saveRecording(record);
+        hideSyncStatus();
+        showToast('Recording synced to cloud ✓', 'success');
+    } catch (error) {
+        hideSyncStatus();
+        showToast('Failed to save recording', 'error');
+        console.error('Error saving recording:', error);
+    }
 }
 
 async function loadHistory() {
-    state.recordings = await getAllRecordings();
-    renderHistory();
+    if (!currentUser) {
+        state.recordings = [];
+        renderHistory();
+        return;
+    }
+    
+    showSyncStatus('Loading...');
+    try {
+        state.recordings = await getAllRecordings();
+        renderHistory();
+        hideSyncStatus();
+    } catch (error) {
+        hideSyncStatus();
+        showToast('Failed to load recordings', 'error');
+        console.error('Error loading recordings:', error);
+    }
 }
 
 function renderHistory() {
@@ -506,9 +558,17 @@ function downloadHistoryAudio(id) {
 }
 
 async function deleteHistoryItem(id) {
-    await deleteRecording(id);
-    showToast('Recording deleted.', 'info');
-    await loadHistory();
+    showSyncStatus('Deleting...');
+    try {
+        await deleteRecording(id);
+        hideSyncStatus();
+        showToast('Recording deleted.', 'info');
+        await loadHistory();
+    } catch (error) {
+        hideSyncStatus();
+        showToast('Failed to delete recording', 'error');
+        console.error('Error deleting recording:', error);
+    }
 }
 
 // ── Copy Transcript ───────────────────────────────────────────────────────────
@@ -523,6 +583,67 @@ copyBtn.addEventListener('click', () => {
             copyBtn.classList.remove('copied');
         }, 2000);
     });
+});
+
+// ── Authentication ───────────────────────────────────────────────────────────
+function handleAuthStateChange(event) {
+    updateAuthUI();
+    if (event.detail.user) {
+        loadHistory();
+        showToast('Signed in successfully!', 'success');
+    } else {
+        state.recordings = [];
+        renderHistory();
+        showToast('Signed out', 'info');
+    }
+}
+
+function updateAuthUI() {
+    if (currentUser) {
+        // Show user info
+        userInfo.classList.remove('hidden');
+        signInPrompt.classList.add('hidden');
+        
+        // Update user details
+        userAvatar.textContent = currentUser.displayName?.charAt(0).toUpperCase() || 'U';
+        userName.textContent = currentUser.displayName || 'User';
+        userEmail.textContent = currentUser.email || '';
+    } else {
+        // Show sign in prompt
+        userInfo.classList.add('hidden');
+        signInPrompt.classList.remove('hidden');
+    }
+}
+
+function showSyncStatus(text = 'Syncing...') {
+    syncStatus.classList.remove('hidden');
+    syncStatus.querySelector('.sync-text').textContent = text;
+}
+
+function hideSyncStatus() {
+    syncStatus.classList.add('hidden');
+}
+
+// Auth event listeners
+signInBtn.addEventListener('click', async () => {
+    try {
+        showSyncStatus('Signing in...');
+        await signInWithGoogle();
+        hideSyncStatus();
+    } catch (error) {
+        hideSyncStatus();
+        showToast('Failed to sign in', 'error');
+        console.error('Sign in error:', error);
+    }
+});
+
+signOutBtn.addEventListener('click', async () => {
+    try {
+        await signOutUser();
+    } catch (error) {
+        showToast('Failed to sign out', 'error');
+        console.error('Sign out error:', error);
+    }
 });
 
 // ── Settings Panel ────────────────────────────────────────────────────────────
@@ -574,6 +695,12 @@ clearAllBtn.addEventListener('click', async () => {
 
 // ── Record Button ─────────────────────────────────────────────────────────────
 recordBtn.addEventListener('click', () => {
+    if (!currentUser) {
+        showToast('Please sign in to record', 'error');
+        openSettings();
+        return;
+    }
+    
     if (state.isRecording) {
         stopRecording();
     } else {
