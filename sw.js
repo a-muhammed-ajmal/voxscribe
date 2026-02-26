@@ -1,4 +1,4 @@
-const CACHE_NAME = 'voxscribe-v2';
+const CACHE_NAME = 'voxscribe-v3';
 const ASSETS = [
     './',
     './index.html',
@@ -7,6 +7,8 @@ const ASSETS = [
     './db.js',
     './firebase.js',
     './manifest.json',
+    './icons/icon-192.svg',
+    './icons/icon-512.svg',
     'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap',
     'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js',
     'https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js',
