@@ -66,6 +66,18 @@ async function init() {
     // Set up auth state listener
     window.addEventListener('authStateChanged', handleAuthStateChange);
     
+    // Set up network status listener
+    window.addEventListener('online', () => {
+        showToast('Connection restored', 'success');
+        if (currentUser) {
+            loadHistory();
+        }
+    });
+    
+    window.addEventListener('offline', () => {
+        showToast('Connection lost. Some features may not work.', 'error');
+    });
+    
     // Initial auth state
     updateAuthUI();
     
@@ -357,12 +369,14 @@ Follow these strict guidelines:
 
         if (!transcript) throw new Error('All Gemini models returned empty responses.');
 
-        transcriptText.value = transcript;
-        transcriptSection.classList.remove('hidden');
-
-        await persistRecording(transcript);
-        await loadHistory();
-        showToast('Transcription complete!', 'success');
+        // Only show transcript if successfully saved
+        const saveSuccess = await persistRecording(transcript);
+        if (saveSuccess) {
+            transcriptText.value = transcript;
+            transcriptSection.classList.remove('hidden');
+            await loadHistory();
+            showToast('Transcription complete!', 'success');
+        }
 
     } catch (err) {
         const friendly = err.is429
@@ -393,7 +407,13 @@ function blobToBase64(blob) {
 async function persistRecording(transcript) {
     if (!currentUser) {
         showToast('Please sign in to save recordings', 'error');
-        return;
+        return false;
+    }
+    
+    // Check network connectivity
+    if (!navigator.onLine) {
+        showToast('No internet connection. Recording will sync when online.', 'error');
+        return false;
     }
     
     showSyncStatus('Saving...');
@@ -414,13 +434,47 @@ async function persistRecording(transcript) {
             mimeType
         };
 
-        await saveRecording(record);
-        hideSyncStatus();
-        showToast('Recording synced to cloud ✓', 'success');
+        // Retry save operation up to 3 times with exponential backoff
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                await saveRecording(record);
+                hideSyncStatus();
+                showToast('Recording synced to cloud ✓', 'success');
+                return true;
+            } catch (saveError) {
+                console.warn(`Save attempt ${attempt} failed:`, saveError);
+                
+                // Don't retry on authentication errors
+                if (saveError.message?.includes('permission-denied') || 
+                    saveError.message?.includes('unauthenticated')) {
+                    throw saveError;
+                }
+                
+                if (attempt === 3) {
+                    throw saveError;
+                }
+                
+                // Exponential backoff: 1s, 2s, 4s
+                const backoffTime = 1000 * Math.pow(2, attempt - 1);
+                await new Promise(resolve => setTimeout(resolve, backoffTime));
+            }
+        }
     } catch (error) {
         hideSyncStatus();
-        showToast('Failed to save recording', 'error');
+        
+        // More specific error messages
+        let errorMessage = 'Failed to save recording. Please try again.';
+        if (error.message?.includes('permission-denied')) {
+            errorMessage = 'Permission denied. Check your account settings.';
+        } else if (error.message?.includes('unavailable')) {
+            errorMessage = 'Service temporarily unavailable. Please try again.';
+        } else if (error.message?.includes('timeout')) {
+            errorMessage = 'Connection timeout. Please check your internet.';
+        }
+        
+        showToast(errorMessage, 'error');
         console.error('Error saving recording:', error);
+        return false;
     }
 }
 
