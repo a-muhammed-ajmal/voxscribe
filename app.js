@@ -41,6 +41,7 @@ const emptyState = $('emptyState');
 const apiKeyInput = $('apiKeyInput');
 const saveApiBtn = $('saveApiBtn');
 const apiStatus = $('apiStatus');
+const apiKeyForm = $('apiKeyForm');
 const toastContainer = $('toastContainer');
 const settingsPanel = $('settingsPanel');
 const settingsBtn = $('settingsBtn');
@@ -722,10 +723,18 @@ saveApiBtn.addEventListener('click', () => {
         return;
     }
     state.apiKey = key;
-    localStorage.setItem('voxscribe_api_key', key);
+    localStorage.setItem('voxcribe_api_key', key);
     showApiStatus('Key saved successfully ✓', 'success');
     showToast('API key saved!', 'success');
 });
+
+// Handle form submission to prevent page reload
+if (apiKeyForm) {
+    apiKeyForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        saveApiBtn.click();
+    });
+}
 
 apiKeyInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') saveApiBtn.click();

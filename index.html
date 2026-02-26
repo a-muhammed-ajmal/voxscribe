@@ -66,7 +66,7 @@
 
     <div class="settings-section">
       <p class="settings-section-title">Gemini AI Key</p>
-      <div class="input-group">
+      <form id="apiKeyForm" class="input-group">
         <label class="input-label" for="apiKeyInput">API Key</label>
         <input
           type="password"
@@ -78,7 +78,7 @@
           aria-label="Gemini API key"
         />
         <p id="apiStatus" class="api-status hidden"></p>
-      </div>
+      </form>
       <button class="save-btn" id="saveApiBtn">Save Key</button>
       <p class="settings-info">
         Get your free key at
